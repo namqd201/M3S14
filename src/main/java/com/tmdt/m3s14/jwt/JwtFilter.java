@@ -1,5 +1,8 @@
 package com.tmdt.m3s14.jwt;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,26 +34,33 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String header = request.getHeader("Authorization");
 
-        if (header != null && header.startsWith("Bearer ")) {
+        try {
+            if (header != null && header.startsWith("Bearer ")) {
 
-            String token = header.substring(7);
-
-            if (jwtProvider.validateToken(token)) {
+                String token = header.substring(7);
 
                 String username = jwtProvider.getUsernameFromToken(token);
 
                 UserDetails userDetails =
                         userDetailsService.loadUserByUsername(username);
 
-                UsernamePasswordAuthenticationToken auth =
+                UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails,
                                 null,
                                 userDetails.getAuthorities()
                         );
 
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                SecurityContextHolder.getContext()
+                        .setAuthentication(authentication);
             }
+
+        } catch (ExpiredJwtException e) {
+            request.setAttribute("JWT_ERROR", "Token expired");
+        } catch (MalformedJwtException | SignatureException e) {
+            request.setAttribute("JWT_ERROR", "Invalid token");
+        } catch (Exception e) {
+            request.setAttribute("JWT_ERROR", "Authentication failed");
         }
 
         filterChain.doFilter(request, response);
